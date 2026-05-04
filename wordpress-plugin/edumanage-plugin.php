@@ -25,7 +25,7 @@ class EduManagePlugin {
         
         // Pasar la URL de la API al frontend JS
         wp_localize_script('edumanage-script', 'edumanage_settings', array(
-            'api_url' => 'http://localhost:8000/api/v1'
+            'api_url' => 'http://localhost:8001/api/v1'
         ));
     }
 

@@ -7,7 +7,6 @@ import mercadopago
 
 from app.database import get_db
 from app.models import Order, Payment, PaymentStatus, User
-from app.schemas import Payment as PaymentSchema
 from app.core.config import settings
 from app.api import deps
 
