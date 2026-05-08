@@ -22,12 +22,186 @@ import {
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001/api/v1";
+const IS_PUBLIC_DEMO =
+  import.meta.env.VITE_DEMO_MODE === "true" ||
+  window.location.hostname.includes("vercel.app");
+
+const seedServices = [
+  {
+    id: "svc-tutoria-matematica",
+    name: "Tutoría matemática",
+    description: "Acompañamiento personalizado para estudiantes secundarios y universitarios.",
+    price: 18000,
+    is_active: true,
+  },
+  {
+    id: "svc-consultoria-academica",
+    name: "Consultoría académica",
+    description: "Diagnóstico, planificación y seguimiento para instituciones educativas.",
+    price: 42000,
+    is_active: true,
+  },
+  {
+    id: "svc-preparacion-examen",
+    name: "Preparación de examen",
+    description: "Plan intensivo con objetivos, materiales y seguimiento semanal.",
+    price: 26000,
+    is_active: true,
+  },
+];
 
 const demoAuth = {
   email: "demo@edumanage.dev",
   password: "Demo12345",
   role: "agent",
 };
+
+function loadDemoState() {
+  const stored = localStorage.getItem("edumanage.demo-state");
+  if (stored) {
+    return JSON.parse(stored);
+  }
+
+  return {
+    users: [],
+    services: seedServices,
+    clients: [],
+    orders: [],
+  };
+}
+
+function saveDemoState(state) {
+  localStorage.setItem("edumanage.demo-state", JSON.stringify(state));
+}
+
+function parseBody(body) {
+  if (!body) {
+    return {};
+  }
+
+  if (body instanceof FormData) {
+    return Object.fromEntries(body.entries());
+  }
+
+  return JSON.parse(body);
+}
+
+async function demoRequest(path, options = {}) {
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  const state = loadDemoState();
+  const method = options.method || "GET";
+  const body = parseBody(options.body);
+
+  if (path === "/services/" && method === "GET") {
+    return state.services.filter((service) => service.is_active);
+  }
+
+  if (path === "/services/" && method === "POST") {
+    const service = {
+      id: crypto.randomUUID(),
+      ...body,
+      price: Number(body.price),
+      is_active: true,
+    };
+    state.services.unshift(service);
+    saveDemoState(state);
+    return service;
+  }
+
+  if (path === "/users/" && method === "POST") {
+    const exists = state.users.some((user) => user.email === body.email);
+    if (exists) {
+      throw new Error("El email ingresado ya está registrado en el sistema.");
+    }
+
+    const user = {
+      id: crypto.randomUUID(),
+      email: body.email,
+      password: body.password,
+      role: body.role || "agent",
+    };
+    state.users.push(user);
+    saveDemoState(state);
+    return { id: user.id, email: user.email, role: user.role };
+  }
+
+  if (path === "/auth/login" && method === "POST") {
+    const user = state.users.find((item) => item.email === body.username && item.password === body.password);
+    if (!user) {
+      throw new Error("Email o contraseña incorrectos");
+    }
+
+    return { access_token: `demo-token:${user.id}`, token_type: "bearer" };
+  }
+
+  if (path === "/users/me") {
+    const token = localStorage.getItem("edumanage.token");
+    const userId = token?.replace("demo-token:", "");
+    const user = state.users.find((item) => item.id === userId);
+    if (!user) {
+      throw new Error("Sesión demo no encontrada.");
+    }
+
+    return { id: user.id, email: user.email, role: user.role };
+  }
+
+  if (path === "/clients/" && method === "GET") {
+    return state.clients;
+  }
+
+  if (path === "/clients/" && method === "POST") {
+    const exists = state.clients.some((client) => client.email === body.email);
+    if (exists) {
+      throw new Error("Ya existe un cliente con este email.");
+    }
+
+    const client = {
+      id: crypto.randomUUID(),
+      user_id: null,
+      crm_id: `crm_${Date.now()}`,
+      ...body,
+    };
+    state.clients.unshift(client);
+    saveDemoState(state);
+    return client;
+  }
+
+  if (path === "/orders/" && method === "GET") {
+    return state.orders;
+  }
+
+  if (path === "/orders/" && method === "POST") {
+    const service = state.services.find((item) => item.id === body.service_id);
+    if (!service) {
+      throw new Error("Servicio no válido o inactivo.");
+    }
+
+    const order = {
+      id: crypto.randomUUID(),
+      client_id: body.client_id,
+      service_id: body.service_id,
+      status: "pending",
+      total_amount: service.price,
+    };
+    state.orders.unshift(order);
+    saveDemoState(state);
+    return order;
+  }
+
+  const statusMatch = path.match(/^\/orders\/(.+)\/status$/);
+  if (statusMatch && method === "PATCH") {
+    const order = state.orders.find((item) => item.id === statusMatch[1]);
+    if (!order) {
+      throw new Error("Pedido no encontrado.");
+    }
+
+    order.status = body.status;
+    saveDemoState(state);
+    return order;
+  }
+
+  throw new Error("Acción demo no soportada.");
+}
 
 const defaultServiceForm = {
   name: "",
@@ -59,6 +233,10 @@ function formatMoney(value) {
 }
 
 async function request(path, options = {}) {
+  if (IS_PUBLIC_DEMO) {
+    return demoRequest(path, options);
+  }
+
   const token = localStorage.getItem("edumanage.token");
   const headers = new Headers(options.headers || {});
 
@@ -315,7 +493,7 @@ function App() {
           <div className="topbar-actions">
             <span className="api-pill">
               <ShieldCheck size={16} />
-              {API_URL.replace("/api/v1", "")}
+              {IS_PUBLIC_DEMO ? "Demo pública" : API_URL.replace("/api/v1", "")}
             </span>
             <button className="icon-button" type="button" onClick={refreshAll} disabled={loading} aria-label="Actualizar">
               {loading ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
