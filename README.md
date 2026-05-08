@@ -39,7 +39,21 @@ docker-compose up -d --build
 docker-compose exec api alembic upgrade head
 ```
 
-La API estará disponible en `http://localhost:8000` y la documentación interactiva en `http://localhost:8000/docs`.
+La API estará disponible en `http://localhost:8001` y la documentación interactiva en `http://localhost:8001/docs`.
+
+## Frontend demo
+
+El repositorio incluye una interfaz React en `frontend/` pensada para mostrar EduManage como demo navegable desde portfolio.
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Por defecto el frontend consume `http://localhost:8001/api/v1`, que es el puerto publicado por `docker-compose.yml`.
+Desde la demo se puede crear un usuario agente, iniciar sesión, cargar servicios académicos, registrar clientes, crear pedidos y actualizar estados.
 
 ## 🧪 Testing y CI/CD
 
